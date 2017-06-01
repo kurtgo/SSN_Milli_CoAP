@@ -30,7 +30,7 @@ Networks, Inc.
 #ifndef ARDUINO_TIME_H_
 #define ARDUINO_TIME_H_
 
-#include <arduino.h>
+#include <Arduino.h>
 #include "utils/errors.h"
 
 #if defined(ARDUINO_ARCH_SAMD)
@@ -62,7 +62,7 @@ error_t set_time_zone( int32_t zone );
  * @brief
  *
  */
-error_t rtc_time_init();
+error_t rtc_time_init( int32_t zone );
 
 /**
  *

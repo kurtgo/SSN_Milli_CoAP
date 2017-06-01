@@ -28,7 +28,7 @@ Networks, Inc.
 */
 
 
-#include <arduino.h>
+#include <Arduino.h>
 #include "utils/errors.h"
 #include "utils/log.h"
 #include "utils/bufutil.h"
@@ -39,32 +39,42 @@ Networks, Inc.
 #include "coapobserve.h"
 #include "coapextif.h"
 #include "coapsensorobs.h"
-#include "coap_rsrcs/temp_sensor.h"
-#include "coap_rsrcs/resrc_coap_if.h"
+//#include "coap_rsrcs/temp_sensor.h"
+//#include "coap_rsrcs/resrc_coap_if.h"
 //#include "coap_rsrcs/arduino_pins.h"
 #include "coap_rsrcs/arduino_time.h"
 #define MNIC_WAKEUP_PIN coap_wakeup_pin
-extern int coap_wakeup_pin;
+int coap_wakeup_pin;
 
-// ISR
-boolean coap_observe_flag = false;
-void coap_observe_isr()
-{
-	coap_observe_flag = true;
-}
+
+// The most recent minute we sent a CoAP response message
+// Make sure we don't send Observe response more than once per minute
+static uint32_t prev_minute = 0;
+static boolean	obs_flag = false;
 
 // Check if we should send Observe message
-void do_observe()
+boolean do_observe()
 {
-	if (coap_observe_flag)
+	// Check if we are doing Observe
+	if (obs_flag)
 	{
-		// Clear the CoAP Observe flag
-		coap_observe_flag = false;
+		uint32_t m = rtc.getMinutes();
+		
+		// Check if the current minute is different from the previous minute
+		if ( m != prev_minute )
+		{
+			// Record the current minute
+			prev_minute = m;
 
-		// Send response
-		coap_observe_rsp();
+			// Send response
+			coap_observe_rsp();
 
+		} // if
 	} // if
+	
+	// Return the obs_flag
+	return obs_flag;
+	
 } // do_observe
 
 // Sequence number 
@@ -74,35 +84,31 @@ static uint32_t start_sn;
 // Register for Observe
 error_t coap_obs_reg()
 {
-	// Set timer for interrupt at whole minutes
-	rtc.setAlarmSeconds(0);
-	rtc.enableAlarm(RTCZero::MATCH_SS);
-
-	// Set callback
-	rtc.attachInterrupt((voidFuncPtr)coap_observe_isr);
+	// Record the minute that we turn on Observe
+	// Make sure we don't send Observe response more than once per minute
+	prev_minute = rtc.getMinutes();
 	
+	// Flag that we are doing Observe
+	obs_flag = true;
+
 	// Set mNIC wake-up pin to HIGH, so that we can toggle it 0 -> 1
 	pinMode(MNIC_WAKEUP_PIN,OUTPUT);
 	digitalWrite(MNIC_WAKEUP_PIN,HIGH);
 
 	// Set start sequence number
 	start_sn = 10; // Non-zero value
-	
-  return ERR_OK;
+
+	return ERR_OK;
 
 } // coap_obs_reg
 
 // De-register for Observe
 error_t coap_obs_dereg()
 {
-	print_buf("De-register for Observe");
+	// Quit Observe
+	dlog(LOG_DEBUG, "De-register for Observe");
+	obs_flag = false;
 	
-	// Disable alarm
-	rtc.disableAlarm();
-
-	// Remove callback
-	rtc.detachInterrupt();
-
 	// Set mNIC wake-up pin to LOW
 	digitalWrite(MNIC_WAKEUP_PIN,LOW);
 
@@ -142,6 +148,23 @@ error_t observe_rx_ack( void *cbctx, struct mbuf *m )
  */
 struct mbuf *pending_rsp;
 
+#define MAX_OBSERVE_URI_LENGTH 32
+// This array will contain the URI used to obtain Token etc for the response
+static char 			obs_uri[MAX_OBSERVE_URI_LENGTH];
+// This function will be used to read a sensor and obtain the response message
+static ObsFuncPtr		pObsFunc;
+
+// This function assmebles an URI and sets the function used to read a sensor
+void set_observer( const char * uri, ObsFuncPtr p )
+{
+	// Assemble the URI, e.g. "/arduino/temp"
+	sprintf( obs_uri, "/arduino/%s", uri );
+	
+	// Set the pointer to the Observe function
+	pObsFunc = p;
+
+} // set_observer()
+
 // Generate Observe response message
 error_t coap_observe_rsp()
 {
@@ -159,8 +182,8 @@ error_t coap_observe_rsp()
 	// Init CoAP options
     copt_init((sl_co*)&(rsp.oh));
 	
-	// TODO: What is this?
-	rc = get_obs_by_uri( "/arduino/temp", &(rsp.tkl), rsp.token, &(rsp.client), &nxt);
+	// Get token etc.
+	rc = get_obs_by_uri( obs_uri, &(rsp.tkl), rsp.token, &(rsp.client), &nxt);
     if (rc)
     {
         dlog(LOG_ERR, "get_obs_by_uri failed\n");
@@ -179,7 +202,7 @@ error_t coap_observe_rsp()
     m_prepend( m, COAP_OBS_HDR_SZ );
 
     // Get temperature reading
-	rc = arduino_get_temp(m,&len);
+	rc = (*pObsFunc)(m,&len);
     if (rc) 
 	{
         m_free(m);

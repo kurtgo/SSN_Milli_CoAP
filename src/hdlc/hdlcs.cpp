@@ -28,7 +28,7 @@ Networks, Inc.
 */
 
 #include <assert.h>
-#include <arduino.h>
+#include <Arduino.h>
 
 #include "utils/hbuf.h"
 #include "hdlcs.h"
@@ -55,7 +55,8 @@ enum hdlcss {
 
 #define INCM8(i)    ((i + 1) & 0x07)
 
-struct hdlcs_state {
+struct hdlcs_state
+{
     int     open;
     
     struct hdlcs_cfg    cfg;
@@ -75,6 +76,7 @@ struct hdlcs_state {
     int r_complete;
 };
 
+// Declare hss
 struct hdlcs_state hss;
 
 
@@ -87,38 +89,41 @@ static int hdlcs_dm(void);
 static int hdlcs_frmr(void);
 
 
-#define APP_SIZE    (200)	/* was 512 on linux */
-
-static void
-hdlcs_get_buf(int size)
+// Allocate an mbuf
+static void hdlcs_get_buf(int size)
 {
-    /* ignoring size */
+	// Set the size of the mbuf data buffer
+	set_mbuf_data_size(size);
+	
+	// Allocate mbuf
     hss.recv = m_get();
     assert(hss.recv);
 }
 
 
-
-
 // Time-out period in ms of the UART
-static uint32_t uart_timeout_ms = 0;
+static uint32_t uart_timeout_ms		= 0;
 
-/* Initialize state machine */
-error_t hdlcs_open( HardwareSerial * pUART, uint32_t timeout_ms )
+/* Open HDLCS connection */
+error_t hdlcs_open( HardwareSerial * pUART, uint32_t timeout_ms, uint32_t max_info_len )
 {
+	// Check that we are not already open
     if (hss.open) 
 	{
         /* already open - err */
         return ERR_FAIL;
     }
 	
-	// Set pointer to Serial object
-	// pS is a static declared in log.h
-	// Serial is defined in log.h
-	pS = log_get_serial();
+	// Check that the specified max payload size is not larger than the corresponding size on the mNIC
+	if ( max_info_len > MNIC_MAX_PAYLOAD_SIZE )
+	{
+		dlog( LOG_DEBUG, "The max payload size specified is too large: %d bytes. The maximum allowed is %d bytes ", max_info_len, MNIC_MAX_PAYLOAD_SIZE );
+		return ERR_FAIL;
+		
+	} // if
 	
 	// Init HDLC UART
-	hdlc_init(pUART);
+	hdlc_init( pUART, max_info_len );
 
 	// Set the time-out period of the UART
 	uart_timeout_ms = timeout_ms;
@@ -126,17 +131,18 @@ error_t hdlcs_open( HardwareSerial * pUART, uint32_t timeout_ms )
     /* set up base state */
     memset(&hss, 0, sizeof(hss));
 
+	/* Set flag saying that we are open */
     hss.open = 1;
 
     /* initialize config to defaults */
-    hss.cfg.max_info_tx = 128;
-    hss.cfg.max_info_rx = 128;
+    hss.cfg.max_info_tx = max_info_len;
+    hss.cfg.max_info_rx = max_info_len;
 
     /* start in disconnected state */
     hss.state = HSS_DISC;
 
-    /* no callbacks yet, allocate buffer here */
-    hdlcs_get_buf(APP_SIZE);
+	/* Allocate the mbuf */
+    hdlcs_get_buf(max_info_len);
    
     /* my address */
     hss.esrc = hdlc_addr_encode(1);
@@ -222,11 +228,11 @@ int hdlcs_run(void)
     case HSS_NORM:
         /* normal mode processing */
         if (hc.type == HDLC_SNRM) {
-            Serial.println("HDLC_SNRM");
+            dlog( LOG_DEBUG, "HDLC_SNRM" );
             rc = hdlcs_snrm();
         }
         else if (hc.type == HDLC_I) {
-            Serial.println("HDLC_I");
+            dlog( LOG_DEBUG, "HDLC_I" );
             /* update seqnums */
             if (hc.ns != hss.vr) {
                 dlog(LOG_ERR, "Unexpected seqnum N(S) = %d  V(R) = %d", 
@@ -238,14 +244,14 @@ int hdlcs_run(void)
             rc = hdlcs_i(hss.recv);
         }
         else if (hc.type == HDLC_RR) {
-            Serial.println("HDLC_RR");
+            dlog( LOG_DEBUG, "HDLC_RR" );
             /* process seqnum - retransmit if necessary */
             dlog(LOG_DEBUG, "hc.nr: %d, hss.vs: %d", hc.nr, hss.vs);
             rc = hdlcs_rr();
         }
 
         else if (hc.type == HDLC_DISC) {
-            Serial.println("HDLC_DISC");
+            dlog( LOG_DEBUG, "HDLC_DISC" );
             m_free(pending_rsp);
             pending_rsp = NULL;
             dlog(LOG_DEBUG, "%s:%d Cleared pending_rsp", __FUNCTION__, __LINE__);
@@ -286,8 +292,7 @@ boolean hdlcs_is_connected()
 } // hdlcs_is_connected
 
 
-struct mbuf *
-hdlcs_read(void)
+struct mbuf * hdlcs_read(void)
 {
     struct mbuf *r;
     
@@ -303,10 +308,10 @@ hdlcs_read(void)
         return r;
     }
     
-    dlog( LOG_DEBUG, "hdlcs_read() - %d", 0 );
-    return NULL;
+    //dlog( LOG_DEBUG, "hdlcs_read() - %d", r );
+	return NULL;
 
-}
+} // hdlcs_read()
 
 int
 hdlcs_write(const void *data, uint16_t len)
@@ -325,8 +330,7 @@ hdlcs_write(const void *data, uint16_t len)
 }
 
 
-static int
-hdlcs_snrm(void)
+static int hdlcs_snrm(void)
 {
     uint8_t hdr[HDLC_HDR_SIZE];
     uint8_t param_info[26];
@@ -347,8 +351,8 @@ hdlcs_snrm(void)
     hdlc_hdr(0, hdlc_control(HDLC_UA, 1), hss.esrc, hss.edst, hdr, &hdrlen);
 
     /* should use negotiated values - min() of primary/secondary */    
-    hsp.max_info_tx = 128;  
-    hsp.max_info_rx = 128;
+    hsp.max_info_tx = hss.cfg.max_info_tx;  
+    hsp.max_info_rx = hss.cfg.max_info_rx;
     hsp.window_tx = 1;
     hsp.window_rx = 1;
 

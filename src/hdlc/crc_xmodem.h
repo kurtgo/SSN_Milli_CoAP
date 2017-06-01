@@ -30,7 +30,7 @@ Networks, Inc.
 #ifndef _CRC_XMODEM_H_
 #define _CRC_XMODEM_H_
 
-#include <arduino.h>
+#include <Arduino.h>
 
 uint16_t crc_xmodem_init(void);
 uint16_t crc_xmodem(uint16_t crc, const void *addr, unsigned int len);

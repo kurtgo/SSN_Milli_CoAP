@@ -27,104 +27,145 @@ Networks, Inc.
 
 */
 
-#ifndef _LIGHT_SENSOR_H_
-#define _LIGHT_SENSOR_H_
+#ifndef TEMP_SENSOR_H_
+#define TEMP_SENSOR_H_
 
-#include <arduino.h>
-#include "utils/errors.h"
-#include "utils/hbuf.h"
 
-typedef struct light_cfg_struct
+typedef enum
 {
-	uint32_t state;
-	
-} light_sensor_cfg_t;
+	INVALID_TEMP = -100,
+	CELSIUS_SCALE = 0x43,
+	FAHRENHEIT_SCALE = 0x46,
+	NUMBER_OF_SCALES = 2
+
+} temp_scale_t;
+
+typedef struct temp_sensor_cfg
+{
+    int8_t  temp_max_thres;
+    int8_t  temp_min_thres;
+    uint8_t  temp_hyst;
+    uint8_t  enable;
+} temp_sensor_cfg_t;
+
+
+typedef enum {
+    tsat_disabled = 0,
+    tsat_no_change,
+    tsat_cleared,
+    tsat_high,
+    tsat_low,
+    tsat_err
+} temp_sensor_alert_t;
+
+typedef struct temp_ctx 
+{
+    temp_sensor_cfg_t	cfg;
+    temp_sensor_alert_t state;
+    
+} temp_ctx_t;
 
 /******************************************************************************/
 /*                      Public Methods                                        */
 /******************************************************************************/
 
-/*
- * @brief CoAP Resource light sensor
- *
- */
-error_t crlight( struct coap_msg_ctx *req, struct coap_msg_ctx *rsp, void *it );
-
-/**
- * @brief Enable sensor
- *
- * @return error_t
- */
-error_t arduino_enab_light(void);
-
-/**
- * @brief Disable sensor
- *
- * @return error_t
- */
-error_t arduino_disab_light(void);
 
 /*
+ * crtemperature
+ *
+ * @brief CoAP Resource temperature sensor
+ *
+ */
+error_t crtemperature( struct coap_msg_ctx *req, struct coap_msg_ctx *rsp, void *it );
+
+/*
+ * disab_temp
+ *
  * @brief
- * @return error_t
  *
  */
-error_t arduino_light_sensor_init();
+error_t arduino_disab_temp();
 
-/**
- * @brief Get light sensor state
- * @param[in] m Pointer to input mbuf
- * @param[in] len Length of input
- * @return error_t
+/*
+ * enab_temp
+ *
+ * @brief
+ *
  */
-error_t arduino_get_light_state(struct mbuf *m, uint8_t *len);
+error_t arduino_enab_temp();
 
-/**
- * @brief Set light sensor config
- * @param[in] m Pointer to input mbuf
- * @param[in] len Length of input
- * @return error_t
+/*
+ * temp_sensor_init
+ *
+ *
  */
-error_t arduino_set_light_cfg(struct mbuf *m, uint8_t *len);
+error_t arduino_temp_sensor_init();
 
-/**
- * @brief Get light sensor config
- * @param[in] m Pointer to input mbuf
- * @param[in] len Length of input
- * @return error_t
+/*
+ * @brief Get sensor temperature measurement unit
+ *
+ * Get temperature scale; Celsius or Fahrenheit
  */
-error_t arduino_get_light_cfg(struct mbuf *m, uint8_t *len);
+char arduino_get_temp_scale();
 
 /**
- * @brief Get sensor 
+ * @brief Get sensor temperature
  *
  * @param[in] m Pointer to input mbuf
  * @param[in] len Length of input
  * @return error_t
  */
-error_t arduino_get_light(struct mbuf *m, uint8_t *len);
+error_t arduino_get_temp(struct mbuf *m, uint8_t *len);
+
+/**
+ * @brief CoAP put temp config
+ *
+ * @param[in] scale Celsius or Fahrenheit
+ * @return error_t
+ */
+error_t arduino_put_temp_cfg( temp_scale_t scale );
+
+/**
+ * @brief CoAP Server get temp config
+ *
+ * @param[in] m Pointer to input mbuf
+ * @param[in] len Length of input
+ * @return error_t
+ */
+error_t arduino_get_temp_cfg(struct mbuf *m, uint8_t *len);
 
 
 /******************************************************************************/
 /*                     Private Methods                                        */
 /******************************************************************************/
 
-/**
- * @brief
- * @return error_t
- */
-error_t light_sensor_enable(void);
-
-/**
- * @brief
- */
-error_t light_sensor_disable(void);
-
-/**
- * @brief Read sensor 
+/*
+ * temp_sensor_read
  *
+ * @param p: if error_t is ERR_OK, temperature reading will be returned.
+ *
+ */
+error_t temp_sensor_read(float * p);
+
+
+/*
+ * @brief  Get thresholds for temp sensor alerts
  * @return error_t
  */
-error_t light_sensor_read( float * p );
+error_t temp_sensor_cfg_set(const struct temp_sensor_cfg *cfg);
 
-#endif /* _LIGHT_SENSOR_H_ */
+/*
+ * @brief  Enable temp alert XXX must be called in app task!
+ * @return error_t
+ */
+error_t temp_sensor_enable(void);
+
+/*
+ * @brief  Disable temp alert XXX must be called in app task!
+ * @return error_t
+ */
+error_t temp_sensor_disable(void);
+
+
+
+#endif /* TEMP_SENSOR_H_ */

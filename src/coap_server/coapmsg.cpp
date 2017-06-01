@@ -27,7 +27,7 @@ Networks, Inc.
 
 */
 
-#include <arduino.h>
+#include <Arduino.h>
 
 #include "utils/errors.h"
 #include "utils/hbuf.h"
@@ -432,6 +432,7 @@ err:
     return rc;
 }
 
+
 /*
  * Parse data into the CoAP message context ctx.
  * We DON'T modify ctx for some anticipated response, we leave that to the
@@ -443,10 +444,9 @@ err:
  * @param code: CoAP return code.
  * @return: 0 on success, nonzero error/special handling code. 
  */
-error_t
-coap_msg_parse(struct coap_msg_ctx *ctx, struct mbuf *m, uint8_t *code)
+error_t coap_msg_parse(struct coap_msg_ctx *ctx, struct mbuf *m, uint8_t *code)
 {
-    int i, osize;
+    int i, osize, mdatalen;
     uint8_t *b = m->m_data; /* assuming single buffer */
     int len = m->m_pktlen;
     struct optlv opt;
@@ -472,6 +472,15 @@ coap_msg_parse(struct coap_msg_ctx *ctx, struct mbuf *m, uint8_t *code)
         /* ignore everything else */
         return ERR_OK;
     }
+
+    // Make sure the packet length is not greater than what is allocated by m_get()
+	mdatalen = get_mbuf_data_size()-16;
+    if ( len > mdatalen )
+    {
+		*code = COAP_RSP_413_REQ_TOO_LARGE;
+		return ERR_MSGSIZE;
+      
+    } // if
 
     /* collect options */
     /* option tlv - make a struct */
@@ -834,6 +843,7 @@ coap_msg_response(struct coap_msg_ctx *ctx)
     int idx = 4;
     struct mbuf *n;
 
+
     coap_msg_log(ctx);
 
     b[0] = COAP_VER | COAP_T_VAL2PDU(ctx->type);
@@ -978,3 +988,4 @@ void coap_set_max_age( uint32_t max_age )
 	coap_max_age_in_seconds = max_age;
 	
 } // coap_set_max_age
+

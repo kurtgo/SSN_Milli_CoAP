@@ -28,7 +28,7 @@ Networks, Inc.
 */
 
 
-#include <arduino.h>
+#include <Arduino.h>
 
 #include "utils/hbuf.h"
 #include "utils/log.h"

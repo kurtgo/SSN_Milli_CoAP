@@ -31,7 +31,23 @@ Networks, Inc.
 #define INC_COAP_SERVER_H
 
 #include "utils/hbuf.h"
-#include "coap_server.h"
+#include "coapsensorobs.h"
+
+
+/**
+ * @brief Init HDLCS and the CoAP Server 
+ *
+ */
+void coap_s_init( HardwareSerial * pSerial, uint32_t max_age, uint32_t uart_timeout_ms, uint32_t max_info_len);
+
+
+
+/**
+ * @brief Run HDLCS and the CoAP Server 
+ *
+ */
+void coap_s_run();
+
 
 /** 
  * @brief Primary CoAP process function.

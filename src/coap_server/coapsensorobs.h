@@ -33,11 +33,25 @@ Networks, Inc.
 #include "utils/errors.h"
 
 /**
- * @brief If the ISR has run, create a CoAP Observe response
+ * @brief A function pointer to set the sensor function used during Observe
  *
- * @return boolean
+ * 
  */
-void do_observe();
+typedef error_t (*ObsFuncPtr)( struct mbuf *, uint8_t * );
+
+/**
+ * @brief Set the URI used for obtaining token etc in CoAP Observe response msg
+ *
+ * 
+ */
+void set_observer( const char * uri, ObsFuncPtr p );
+
+/**
+ * @brief Checks if Observe is turned on and if so, checks if a response should be sent
+ *
+ * @return boolean Returns a boolean that tells whether or not Observe is turned on
+ */
+boolean do_observe();
 
 /**
  * @brief CoAP Register for Observe

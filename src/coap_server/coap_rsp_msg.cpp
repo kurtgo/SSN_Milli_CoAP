@@ -27,29 +27,66 @@ Networks, Inc.
 
 */
 
-#ifndef UTIL_BUF_H
-#define UTIL_BUF_H
+#include "utils/log.h"
+#include "coap_rsp_msg.h"
+//#include "arduino_time.h"
 
-#include <Arduino.h>
+// Assemble a CoAP response message; {Timestamp,Value(s),Unit}
+error_t rsp_msg( struct mbuf * m, uint8_t *len, uint32_t count, float * reading, const char * unit )
+{
+    uint8_t 	l;
+	char 		rsp_buf[256];
+	char		reading_buf[128];
+	char		unit_buf[32];
+	char * 		p;
+	//time_t     	epoch;
+	uint32_t	ix;
+	
+	// Create string containing the UNIX epoch
+	//epoch = get_rtc_epoch();
+	//sprintf( rsp_buf, "%d", epoch );
+	
+	// Check if we have a sensor reading
+	if (reading)
+	{
+		// Get each value
+		for( ix = 0; ix < count; ix++ )
+		{
+			// Create string containing reading
+			sprintf( reading_buf, ",%.2f", *reading++ );
 
-uint16_t buf_le16(const void *buf, int idx);
-uint32_t buf_le32(const void *buf, int idx);
-uint64_t buf_le48(const void *buf, int idx);
-uint64_t buf_le64(const void *buf, int idx);
-uint16_t buf_be16(const void *buf, int idx);
-uint32_t buf_be32(const void *buf, int idx);
-uint64_t buf_be48(const void *buf, int idx);
-uint64_t buf_be64(const void *buf, int idx);
+			// Concatenate the reading
+			strcat( rsp_buf, reading_buf );
+			
+		} // for
+	} // if
 
-void buf_wle16(void *buf, int idx, uint16_t val);
-void buf_wle32(void *buf, int idx, uint32_t val);
-void buf_wbe16(void *buf, int idx, uint16_t val);
-void buf_wbe32(void *buf, int idx, uint32_t val);
+	// Check if we have a unit
+	if (unit)
+	{
+		// Concatenate the unit
+		sprintf( unit_buf, ",%s", unit );
+		strcat( rsp_buf, unit_buf );
+		
+	} // if
 
-float buf_befloat(const void *buf, int idx);
-float buf_lefloat(const void *buf, int idx);
-double buf_bedouble(const void *buf, int idx);
-double buf_ledouble(const void *buf, int idx);
+	// Print message
+	dlog( LOG_INFO, rsp_buf );
+	
+	// Get length
+	l = strlen(rsp_buf);
+	
+	// Allocate memory
+	p = (char*) m_append(m,l);
+    if (!p) 
+    {
+        return ERR_NO_MEM;
+    }
 
-
-#endif
+	// Store output
+	strcpy(p,rsp_buf);
+	*len = l;
+	
+    return ERR_OK;
+	
+} // rsp_msg()

@@ -27,29 +27,24 @@ Networks, Inc.
 
 */
 
-#ifndef UTIL_BUF_H
-#define UTIL_BUF_H
+#ifndef COAP_RSP_MSG_H
+#define COAP_RSP_MSG_H
 
 #include <Arduino.h>
+#include "utils/hbuf.h"
+#include "utils/errors.h"
 
-uint16_t buf_le16(const void *buf, int idx);
-uint32_t buf_le32(const void *buf, int idx);
-uint64_t buf_le48(const void *buf, int idx);
-uint64_t buf_le64(const void *buf, int idx);
-uint16_t buf_be16(const void *buf, int idx);
-uint32_t buf_be32(const void *buf, int idx);
-uint64_t buf_be48(const void *buf, int idx);
-uint64_t buf_be64(const void *buf, int idx);
+/**
+ * @brief Make CoAP response message
+ * 
+ * @param [out] m		A buffer of type struct mbuf
+ * @param [out] len		The length of the response
+ * @param [in] count	The number of sensor readings
+ * @param [in] reading	Pointer to an array of sensor readings or to one reading
+ * @param [in] unit		A string containing the unit of measure e.g. "F" for Fahrenheit
+ *
+ */ 
+error_t rsp_msg( struct mbuf * m, uint8_t *len, uint32_t count, float * reading, const char * unit );
 
-void buf_wle16(void *buf, int idx, uint16_t val);
-void buf_wle32(void *buf, int idx, uint32_t val);
-void buf_wbe16(void *buf, int idx, uint16_t val);
-void buf_wbe32(void *buf, int idx, uint32_t val);
+#endif /* COAP_RSP_MSG_H */
 
-float buf_befloat(const void *buf, int idx);
-float buf_lefloat(const void *buf, int idx);
-double buf_bedouble(const void *buf, int idx);
-double buf_ledouble(const void *buf, int idx);
-
-
-#endif

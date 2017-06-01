@@ -27,7 +27,7 @@ Networks, Inc.
 
 */
 
-#include <arduino.h>
+#include <Arduino.h>
 
 #include "utils/hbuf.h"
 #include "utils/log.h"
@@ -39,8 +39,10 @@ Networks, Inc.
 #include "coapobserve.h"
 #include "exp_coap.h"
 #include "coap_server.h"
+#include "hdlc/hdlcs.h"
 
 
+#define VERSION_NUMBER "1.3.3"
 
 /* 
  * Use environment variable COAP_DATA_ROOT to set server data root dir 
@@ -52,10 +54,35 @@ Networks, Inc.
  */
 
 
-//extern char *coap_data_root;
-//extern char *id;
 
-//struct coap_stats coap_stats;
+
+
+// CoAP Server initialization
+void coap_s_init( HardwareSerial * pSerial, uint32_t max_age, uint32_t uart_timeout_ms, uint32_t max_hdlc_payload_size )
+{
+	int res;
+	
+	// Init CoAP registry
+	coap_registry_init();
+
+	/* Set Max-Age; CoAP Server Response Option 14 */
+	coap_set_max_age(max_age);
+	
+	// Open the HDLC connection
+	res = hdlcs_open( pSerial, uart_timeout_ms, max_hdlc_payload_size );
+	if (res) 
+	{
+		dlog(LOG_ERR, "HDLC initialization failed");
+
+	} // if
+
+	// Print version number, time and date
+	dlog(LOG_INFO, "Arduino MilliShield Software Version Number: %s\n", VERSION_NUMBER );
+	dlog(LOG_INFO, "Time: " __TIME__ "\n");
+	dlog(LOG_INFO, "Date: " __DATE__ "\n");
+
+} // coap_s_init()
+
 
 /*** limited to static data and time ***/
 
@@ -81,16 +108,13 @@ mbuf_ptr_t coap_s_proc( mbuf_ptr_t m )
     
     struct mbuf *r = NULL;
 
-	char str2[40];
-	strncpy(str2,(char*)m->data, m->len); 
-	
     /* Parse incoming message */
     memset(&cc, 0, sizeof(cc));
     copt_init((sl_co*)&(cc.oh));
     memset(&rcc, 0, sizeof(rcc));
     copt_init((sl_co*)&(rcc.oh));
     rc = coap_msg_parse(&cc, m, &code);
-    
+
     if (rc == ERR_OK) {
         if (cc.type == COAP_T_ACK_VAL) {
             /*
@@ -213,6 +237,7 @@ error:
 done:
     assert(cc.msg == m);
     if (cc.msg) {
+		dlog(LOG_DEBUG,"Freeing cc.msg");
         m_free(cc.msg);
         cc.msg = NULL;
     }
@@ -223,3 +248,29 @@ done:
 } // coap_s_proc
 
 
+
+// Run HDLCS and the CoAP Server 
+void coap_s_run()
+{
+	struct mbuf *appd;
+	struct mbuf *arsp;
+	
+	/* Run the secondary-station HDLC state machine */
+	hdlcs_run();
+	
+	/* Serve incoming request, if any */
+	appd = hdlcs_read();
+	if (appd) 
+	{
+		/* Run the CoAP server */
+		arsp = coap_s_proc(appd);
+		if (arsp) 
+		{
+			/* Send CoAP response, if any */
+			hdlcs_write(arsp->data, arsp->len);
+     
+		} // if
+		
+	} // if	
+
+} // coap_s_run()
